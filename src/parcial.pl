@@ -35,20 +35,57 @@ persona(chrome).
 persona(kohaku).
 persona(suika).
 
+puedeRealizarObjetivo(Persona, Objetivo):-
+    objetivo(_, Objetivo, TipoDeObjetivo),
+    puedeTrabajarEn(Persona, TipoDeObjetivo).
+
+puedeTrabajarEn(Persona, Quimica):-
+    persona(Persona),
+    expertoEn(Persona, quimica),
+    objetivo(_, _, Quimica),
+    esUnProductoHechoMedianteProcesosQuimicos(Quimica).
+puedeTrabajarEn(chrome, Material):-
+    objetivo(_, _, Material),
+    esUnMaterial(Material),
+    not(seConsigueDeLosAnimales(Material)).
+puedeTrabajarEn(Persona, material(animales)):-
+    persona(Persona),
+    seDedicaA(Persona, caza).
+puedeTrabajarEn(suika, material(playa)).
+puedeTrabajarEn(suika, material(bosque)).
+puedeTrabajarEn(suika, quimica([mezclarIngredientes])).
+puedeTrabajarEn(chrome, Quimica):-
+    objetivo(_, _, Quimica),
+    procesosQuimicosConQueEstaHecho(Quimica, ProcesosQuimicos),
+    length(ProcesosQuimicos, CantidadDeProcesosQuimicos),
+    CantidadDeProcesosQuimicos =< 3.
+puedeTrabajarEn(Persona, Artesania):-
+    persona(Persona),
+    objetivo(_, _, Artesania),
+    dificultadArtesania(Artesania, Dificultad),
+    criterioDificultadArtesania(Persona, Dificultad).    
+
 expertoEn(senku, quimica).
 
-puedeTrabajarEn(Persona, quimica(_)):-
-    persona(Persona),
-    expertoEn(Persona, quimica).
-
-puedeConseguir(chrome, Material):-
-    objetivo(_, _, Material),
-    esUnMaterial(Material).
+seDedicaA(kohaku, caza).
 
 esUnMaterial(material(_)).
-material(material(DondeSeConsigue), DondeSeConsigue).
+
 esUnProductoHechoMedianteProcesosQuimicos(quimica(_)).
-procesosQuimicos(quimica(ProcesosQuimicos), ProcesosQuimicos).
+
+dondeSeConsigueMaterial(material(DondeSeConsigue), DondeSeConsigue).
+
+procesosQuimicosConQueEstaHecho(quimica(ProcesosQuimicos), ProcesosQuimicos).
+
+dificultadArtesania(artesania(Dificultad), Dificultad).
+
+seConsigueDeLosAnimales(material(animales)).
+
+criterioDificultadArtesania(senku, Dificultad):-
+    Dificultad =< 6.
+criterioDificultadArtesania(Persona, Dificultad):-
+    Persona \= senku,
+    Dificultad < 3.
 
 %% Punto 2
 
@@ -61,10 +98,8 @@ objetivoFinalDeUnProyecto(Proyecto, ObjetivoFinal):-
 esIndispensablePara(Persona, Objetivo):-
     objetivo(_, Objetivo, _),
     persona(Persona),
-    persona(OtraPersona),
-    Persona \= OtraPersona,
-    puedeTrabajarEn(Persona, Objetivo),
-    not(puedeTrabajarEn(OtraPersona, Objetivo)).
+    puedeRealizarObjetivo(Persona, Objetivo),
+    forall((persona(OtraPersona), Persona \= OtraPersona), not(puedeRealizarObjetivo(OtraPersona, Objetivo))).
 
 %% Punto 4
 
@@ -79,13 +114,67 @@ estaPendiente(Objetivo):-
 %% Punto 5
 
 cuantoFaltaParaTerminar(Proyecto, TiempoFaltante):-
-
-    findall(TiempoEstimado, (), TiemposEstimados),
+    objetivo(Proyecto, _, _),
+    findall(TiempoEstimado, (objetivo(Proyecto, Objetivo, _), estaPendiente(Objetivo), tiempoEstimadoParaRealizarse(Objetivo, TiempoEstimado)), TiemposEstimados),
     sum_list(TiemposEstimados, TiempoFaltante).
+
+tiempoEstimadoParaRealizarse(Objetivo, TiempoEstimado):-
+    objetivo(_, Objetivo, TipoDeObjetivo),
+    tiempoEstimadoSegunTipo(TipoDeObjetivo, TiempoEstimado).
+
+tiempoEstimadoSegunTipo(Material, 3):-
+    objetivo(_, _, Material),
+    esUnMaterial(Material),
+    seEncuentraEnLaSuperficie(Material).
+tiempoEstimadoSegunTipo(material(mar), 8).
+tiempoEstimadoSegunTipo(material(cueva), 48).
+tiempoEstimadoSegunTipo(quimica(ProcesosQuimicos), TiempoEstimado):-
+    length(ProcesosQuimicos, CantidadDeProcesosQuimicos),
+    TiempoEstimado is 2 * CantidadDeProcesosQuimicos.
+tiempoEstimadoSegunTipo(artesania(Dificultad), Dificultad).
+
+seEncuentraEnLaSuperficie(Material):-
+    not(dondeSeConsigueMaterial(Material, mar)),
+    not(dondeSeConsigueMaterial(Material, cueva)).
 
 %% Punto 6
 
 esCriticoPara(Proyecto, Objetivo):-
+    objetivo(Proyecto, Objetivo, _),
+    objetivo(Proyecto, OtroObjetivo, _),
+    Objetivo \= OtroObjetivo,
+    bloqueaElAvanceDe(Objetivo, OtroObjetivo),
+    esCostoso(OtroObjetivo).
 
+bloqueaElAvanceDe(ObjetivoPrevio, ObjetivoSiguiente):-
+    prerrequisito(ObjetivoPrevio, ObjetivoSiguiente).
+bloqueaElAvanceDe(ObjetivoPrevio, ObjetivoSiguiente):-
+    prerrequisito(ObjetivoPrevio, OtroObjetivo),
+    bloqueaElAvanceDe(OtroObjetivo, ObjetivoSiguiente).
+
+esCostoso(Objetivo):-
+    tiempoEstimadoParaRealizarse(Objetivo, TiempoEstimado),
+    TiempoEstimado > 5.
 
 %% Punto 7
+
+leConvieneTrabajarSobre(Persona, Objetivo, Proyecto):-
+    persona(Persona),
+    objetivo(Proyecto, Objetivo, _),
+    puedeIniciarse(Objetivo),
+    puedeRealizarObjetivo(Persona, Objetivo),
+    esIdealPara(Persona, Objetivo, Proyecto).
+
+esIdealPara(Persona, Objetivo, _):-
+    esIndispensablePara(Persona, Objetivo).
+esIdealPara(_, Objetivo, Proyecto):-
+    tiempoEstimadoParaRealizarse(Objetivo, TiempoEstimado),
+    cuantoFaltaParaTerminar(Proyecto, TiempoFaltante),
+    TiempoEstimado > TiempoFaltante / 2.
+esIdealPara(Persona, Objetivo, Proyecto):-
+    forall((objetivo(Proyecto, OtroObjetivo, _), Objetivo \= OtroObjetivo, puedeIniciarse(OtroObjetivo)), puedeHacerloAlguienMas(Persona, OtroObjetivo)).
+
+puedeHacerloAlguienMas(Persona, Objetivo):-
+    persona(OtraPersona),
+    Persona \= OtraPersona,
+    puedeRealizarObjetivo(OtraPersona, Objetivo).
